@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 def read_landmark_map(map_id):
@@ -44,7 +45,6 @@ def is_valid_control_sequence(sequence, initial_pose, scene_width, scene_height)
 
 
 def save_control_sequence(initial_pose, control_sequence, map_id, seq_id):
-    # Add a placeholder column for theta in the control sequence
     theta_placeholder = np.zeros((control_sequence.shape[0], 1))
     control_sequence_with_placeholder = np.hstack([control_sequence, theta_placeholder])
 
@@ -58,29 +58,40 @@ def save_control_sequence(initial_pose, control_sequence, map_id, seq_id):
     np.save(filename, full_sequence)
 
 
-def plot_robot_path(landmarks, initial_pose, control_sequence, map_id, seq_id, scene_width, scene_height):
+def draw_robot(ax, pose, L=0.2, W=0.1):
+    # Draws the robot as a rectangle on the plot
+    x, y, theta = pose
+    robot = patches.Rectangle((x - L/2, y - W/2), L, W, angle=np.rad2deg(theta), fill=True, color='red', ec='black')
+    ax.add_patch(robot)
+
+
+def plot_robot_path(landmarks, initial_pose, control_sequence, map_id, seq_id, scene_width, scene_height, draw_interval=10):
+    fig, ax = plt.subplots()
+    ax.plot(landmarks[:, 0], landmarks[:, 1], 'bo', markersize=5, label='Landmarks')
     x, y, theta = initial_pose
     dt = 0.1
-
-    plt.figure()
-    plt.plot(landmarks[:, 0], landmarks[:, 1], 'bo')
     path = [initial_pose[:2]]
 
-    for v, w in control_sequence:
+    for i, (v, w) in enumerate(control_sequence):
         theta += w * dt
+        theta = (theta + np.pi) % (2 * np.pi) - np.pi  # Normalize theta
         x += v * np.cos(theta) * dt
         y += v * np.sin(theta) * dt
         path.append([x, y])
 
-    path = np.array(path)
-    plt.plot(path[:, 0], path[:, 1], 'r-')
+        if i % draw_interval == 0:
+            draw_robot(ax, (x, y, theta), L=0.2, W=0.1)  # Draw the robot at reduced intervals
 
-    plt.xlim(0, scene_width)
-    plt.ylim(0, scene_height)
-    plt.title(f"Robot Path for Map {map_id}, Sequence {seq_id}")
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.grid(True)
+    path = np.array(path)
+    ax.plot(path[:, 0], path[:, 1], 'r-', label='Path')
+
+    ax.set_xlim(0, scene_width)
+    ax.set_ylim(0, scene_height)
+    ax.set_title(f"Robot Path for Map {map_id}, Sequence {seq_id}")
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.grid(True)
+    ax.legend()
     plt.savefig(f"controls/path_{map_id}_{seq_id}.png")
     plt.close()
 
